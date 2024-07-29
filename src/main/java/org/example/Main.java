@@ -13,6 +13,8 @@ import java.util.Map;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class Main implements RequestHandler<Map<String, Object>, String> {
 
@@ -27,12 +29,14 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 		int size = input.containsKey("size") ? ((Number)input.get("size")).intValue() : 10;
 
 		try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
-			PaginatedNoticeResponse response = new PaginatedNoticeResponse();
-			NoticeData noticeData = new NoticeData();
-			List<Notice> notices = new ArrayList<>();
+			context.getLogger().log("Connected to database");
+
+			ObjectNode responseNode = objectMapper.createObjectNode();
+			ArrayNode noticesArray = objectMapper.createArrayNode();
 
 			// 전체 아이템 수 조회
 			int totalItems = getTotalItems(conn);
+			context.getLogger().log("Total Items: " + totalItems);
 
 			// 페이지네이션된 데이터 조회
 			String sql = "SELECT * FROM notice ORDER BY id DESC LIMIT ? OFFSET ?";
@@ -41,49 +45,54 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 				pstmt.setInt(2, page * size);
 				try (ResultSet rs = pstmt.executeQuery()) {
 					while (rs.next()) {
-						Notice notice = new Notice();
-						notice.setId(rs.getInt("id"));
-						notice.setCategory(rs.getString("category"));
-						notice.setNoticeNo(rs.getInt("notice_no"));
-						notice.setTitle(rs.getString("title"));
-						notice.setWriter(rs.getString("writer"));
-						notice.setNoticedAt(rs.getDate("noticedAt"));
-						notice.setViews(rs.getInt("views"));
-						notice.setLink(rs.getString("link"));
-						notices.add(notice);
+						ObjectNode noticeNode = objectMapper.createObjectNode();
+						noticeNode.put("id", rs.getInt("id"));
+						noticeNode.put("category", rs.getString("category"));
+						noticeNode.put("notice_no", rs.getInt("notice_no"));
+						noticeNode.put("title", rs.getString("title"));
+						noticeNode.put("writer", rs.getString("writer"));
+						noticeNode.put("noticedAt", rs.getDate("noticedAt").toString());
+						noticeNode.put("views", rs.getInt("views"));
+						noticeNode.put("link", rs.getString("link"));
+						noticesArray.add(noticeNode);
+
+						context.getLogger().log("Added notice: " + noticeNode.toString());
 					}
 				}
 			}
 
-			noticeData.setNotices(notices);
+			ObjectNode paginationNode = objectMapper.createObjectNode();
+			paginationNode.put("currentPage", page);
+			paginationNode.put("pageSize", size);
+			paginationNode.put("totalItems", totalItems);
+			paginationNode.put("hasNextPage", (page + 1) * size < totalItems);
 
-			PaginationInfo paginationInfo = new PaginationInfo();
-			paginationInfo.setCurrentPage(page);
-			paginationInfo.setPageSize(size);
-			paginationInfo.setTotalItems(totalItems);
-			paginationInfo.setHasNextPage((page + 1) * size < totalItems);
+			ObjectNode dataNode = objectMapper.createObjectNode();
+			dataNode.set("notices", noticesArray);
+			dataNode.set("pagination", paginationNode);
 
-			noticeData.setPagination(paginationInfo);
+			responseNode.put("status", "success");
+			responseNode.set("data", dataNode);
 
-			response.setStatus("success");
-			response.setData(noticeData);
-
-			return objectMapper.writeValueAsString(response);
+			return objectMapper.writeValueAsString(responseNode);
 		} catch (SQLException | com.fasterxml.jackson.core.JsonProcessingException e) {
-			PaginatedNoticeResponse errorResponse = new PaginatedNoticeResponse();
-			errorResponse.setStatus("error");
-			NoticeData errorData = new NoticeData();
-			errorData.setNotices(new ArrayList<>());
-			PaginationInfo errorPagination = new PaginationInfo();
-			errorPagination.setCurrentPage(0);
-			errorPagination.setPageSize(0);
-			errorPagination.setTotalItems(0);
-			errorPagination.setHasNextPage(false);
-			errorData.setPagination(errorPagination);
-			errorResponse.setData(errorData);
+			ObjectNode errorResponseNode = objectMapper.createObjectNode();
+			errorResponseNode.put("status", "error");
+
+			ObjectNode errorDataNode = objectMapper.createObjectNode();
+			errorDataNode.set("notices", objectMapper.createArrayNode());
+
+			ObjectNode errorPaginationNode = objectMapper.createObjectNode();
+			errorPaginationNode.put("currentPage", 0);
+			errorPaginationNode.put("pageSize", 0);
+			errorPaginationNode.put("totalItems", 0);
+			errorPaginationNode.put("hasNextPage", false);
+
+			errorDataNode.set("pagination", errorPaginationNode);
+			errorResponseNode.set("data", errorDataNode);
 
 			try {
-				return objectMapper.writeValueAsString(errorResponse);
+				return objectMapper.writeValueAsString(errorResponseNode);
 			} catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
 				return "{\"status\":\"error\",\"data\":{\"notices\":[],\"pagination\":{\"currentPage\":0,\"pageSize\":0,\"totalItems\":0,\"hasNextPage\":false}}}";
 			}
