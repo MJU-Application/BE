@@ -35,23 +35,26 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 			ArrayNode noticesArray = objectMapper.createArrayNode();
 
 			// 전체 아이템 수 조회
-			int totalItems = getTotalItems(conn);
-			context.getLogger().log("Total Items: " + totalItems);
+			// int totalItems = getTotalItems(conn, context);
+			// context.getLogger().log("Total Items: " + totalItems);
 
 			// 페이지네이션된 데이터 조회
-			String sql = "SELECT * FROM notice ORDER BY id DESC LIMIT ? OFFSET ?";
+			String sql = "SELECT * FROM notice ORDER BY notice_id DESC LIMIT ? OFFSET ?";
 			try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+				context.getLogger().log("Input Success 001");
 				pstmt.setInt(1, size);
 				pstmt.setInt(2, page * size);
 				try (ResultSet rs = pstmt.executeQuery()) {
+					context.getLogger().log("Input Success 002");
 					while (rs.next()) {
+						context.getLogger().log("Success While 001");
 						ObjectNode noticeNode = objectMapper.createObjectNode();
-						noticeNode.put("id", rs.getInt("id"));
+						noticeNode.put("notice_id", rs.getInt("notice_id"));
 						noticeNode.put("category", rs.getString("category"));
 						noticeNode.put("notice_no", rs.getInt("notice_no"));
 						noticeNode.put("title", rs.getString("title"));
 						noticeNode.put("writer", rs.getString("writer"));
-						noticeNode.put("noticedAt", rs.getDate("noticedAt").toString());
+						noticeNode.put("noticedAt", rs.getString("noticedAt"));
 						noticeNode.put("views", rs.getInt("views"));
 						noticeNode.put("link", rs.getString("link"));
 						noticesArray.add(noticeNode);
@@ -64,8 +67,8 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 			ObjectNode paginationNode = objectMapper.createObjectNode();
 			paginationNode.put("currentPage", page);
 			paginationNode.put("pageSize", size);
-			paginationNode.put("totalItems", totalItems);
-			paginationNode.put("hasNextPage", (page + 1) * size < totalItems);
+			// paginationNode.put("totalItems", totalItems);
+			// paginationNode.put("hasNextPage", (page + 1) * size < totalItems);
 
 			ObjectNode dataNode = objectMapper.createObjectNode();
 			dataNode.set("notices", noticesArray);
@@ -99,14 +102,16 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 		}
 	}
 
-	private int getTotalItems(Connection conn) throws SQLException {
-		String sql = "SELECT COUNT(*) FROM notice";
-		try (Statement stmt = conn.createStatement();
-			 ResultSet rs = stmt.executeQuery(sql)) {
-			if (rs.next()) {
-				return rs.getInt(1);
-			}
-		}
-		return 0;
-	}
+	// private int getTotalItems(Connection conn, Context context) throws SQLException {
+	// 	context.getLogger().log("Success Input 1");
+	// 	try (Statement stmt = conn.createStatement();
+	// 		 ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM notice")) {
+	// 		context.getLogger().log("ResultSet: " + rs);
+	// 		if (rs.next()) {
+	// 			context.getLogger().log("Success Output 1" + rs);
+	// 			return rs.getInt(1);
+	// 		}
+	// 	}
+	// 	return 0;
+	// }
 }
