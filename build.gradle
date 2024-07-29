@@ -1,0 +1,27 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
+}
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.amazonaws:aws-lambda-java-core:1.2.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.12.5'
+    implementation 'mysql:mysql-connector-java:8.0.23'
+}
+
+// AWS Lambda 함수를 위한 JAR 파일 생성
+shadowJar {
+    manifest {
+        attributes 'Main-Class': 'org.example.Main'
+    }
+    mergeServiceFiles()
+}
+
+build.dependsOn shadowJar
