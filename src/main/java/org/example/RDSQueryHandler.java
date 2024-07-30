@@ -1,55 +1,87 @@
 package org.example;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.amazonaws.services.lambda.runtime.LambdaLogger;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-public class RDSQueryHandler implements RequestHandler<Object, String> {
+public class RDSQueryHandler implements RequestHandler<Map<String, String>, Map<String, Object>> {
 
 	private static final String DB_URL = System.getenv("DB_URL");
 	private static final String DB_USER = System.getenv("DB_USER");
 	private static final String DB_PASSWORD = System.getenv("DB_PASSWORD");
 
-	private final ObjectMapper objectMapper = new ObjectMapper();
-
 	@Override
-	public String handleRequest(Object input, Context context) {
+	public Map<String, Object> handleRequest(Map<String, String> input, Context context) {
+		LambdaLogger logger = context.getLogger();
+		Map<String, Object> response = new HashMap<>();
+		Map<String, Object> data = new HashMap<>();
+		List<Map<String, Object>> menuList = new ArrayList<>();
+
+		String mealDate = input.get("date");
+		String restaurantName = input.get("cafeteria");
+
+		String query = "SELECT m.meal_id, m.meal_date, m.meal_day, m.category, m.menu, r.name AS restaurant_name " +
+			"FROM meal m " +
+			"JOIN restaurant r ON m.restaurant_id = r.restaurant_id " +
+			"WHERE m.meal_date = ? AND r.name = ? ";
+
 		try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-			 Statement stmt = conn.createStatement();
-			 ResultSet rs = stmt.executeQuery("SELECT * FROM notice")) {
+			 PreparedStatement pstmt = conn.prepareStatement(query)) {
 
-			ArrayNode resultArray = objectMapper.createArrayNode();
+			pstmt.setString(1, mealDate);
+			pstmt.setString(2, restaurantName);
 
-			ResultSetMetaData metaData = rs.getMetaData();
-			int columnCount = metaData.getColumnCount();
+			try (ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					if (data.isEmpty()) {
+						data.put("date", rs.getString("meal_date"));
+						data.put("day", rs.getString("meal_day"));
+						data.put("cafeteria", rs.getString("restaurant_name"));
+					}
 
-			while (rs.next()) {
-				ObjectNode rowObject = objectMapper.createObjectNode();
-				for (int i = 1; i <= columnCount; i++) {
-					String columnName = metaData.getColumnName(i);
-					rowObject.put(columnName, rs.getString(i));
+					Map<String, Object> menuItem = new HashMap<>();
+					menuItem.put("id", rs.getInt("meal_id"));
+					menuItem.put("category", rs.getString("category"));
+					menuItem.put("food", parseFood(rs.getString("menu")));
+					menuList.add(menuItem);
 				}
-				resultArray.add(rowObject);
 			}
 
-			ObjectNode jsonResult = objectMapper.createObjectNode();
-			jsonResult.put("status", "success");
-			jsonResult.set("data", resultArray);
+			data.put("menu", menuList);
+			response.put("success", true);
+			response.put("data", data);
 
-			return objectMapper.writeValueAsString(jsonResult);
+		} catch (SQLException e) {
+			logger.log("Error executing SQL query: " + e.getMessage());
+			response.put("success", false);
+			response.put("error", "Database operation failed: " + e.getMessage());
+		}
 
-		} catch (SQLException | com.fasterxml.jackson.core.JsonProcessingException e) {
-			ObjectNode errorResult = objectMapper.createObjectNode();
-			errorResult.put("status", "error");
-			errorResult.put("message", "Database error: " + e.getMessage());
-			try {
-				return objectMapper.writeValueAsString(errorResult);
-			} catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
-				return "{\"status\":\"error\",\"message\":\"JSON processing error\"}";
-			}
+		return response;
+	}
+
+	private List<String> parseFood(String foodString) {
+		// Remove the square brackets
+		String content = foodString.substring(1, foodString.length() - 1);
+
+		if (content.equals("등록된 식단내용이 없습니다")) {
+			return Collections.singletonList(content);
+		} else {
+			// Split the string by comma and trim each item
+			return Arrays.stream(content.split(","))
+				.map(String::trim)
+				.toList();
 		}
 	}
 }
