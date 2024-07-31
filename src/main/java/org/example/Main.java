@@ -29,13 +29,16 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 	public String handleRequest(Map<String, Object> input, Context context) {
 
 		try {
+			context.getLogger().log(String.format("INFO: input %s \n", objectMapper.writeValueAsString(input)));
 			String body = (String)input.get("body");
 			Map<String, Object> requestValues = objectMapper.readValue(body, new TypeReference<Map<String, Object>>() {
 			});
 
-			int page = requestValues.containsKey("page") ? ((Number)input.get("page")).intValue() : 0;
-			int size = requestValues.containsKey("size") ? ((Number)input.get("size")).intValue() : 10;
+			int page = ((Number)requestValues.get("page")).intValue();
+			int size = ((Number)requestValues.get("size")).intValue();
 			String category = requestValues.get("category").toString();
+
+			context.getLogger().log("page: " + page + " ,size: " + size + " ,category" + category);
 
 			try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
 				context.getLogger().log("Connected to database");
