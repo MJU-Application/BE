@@ -37,8 +37,9 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 			int page = ((Number)requestValues.get("page")).intValue();
 			int size = ((Number)requestValues.get("size")).intValue();
 			String category = requestValues.get("category").toString();
+			String title = requestValues.get("title").toString();
 
-			context.getLogger().log("page: " + page + " ,size: " + size + " ,category" + category);
+			context.getLogger().log("page: " + page + " ,size: " + size + " ,category: " + category + " ,title: " + title);
 
 			try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
 				context.getLogger().log("Connected to database");
@@ -51,12 +52,13 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 				context.getLogger().log("Total Items: " + totalItems);
 
 				// 페이지네이션된 데이터 조회
-				String sql = "SELECT * FROM notice WHERE category = ?ORDER BY notice_id DESC LIMIT ? OFFSET ?";
+				String sql = "SELECT * FROM notice WHERE category = ? AND title LIKE ? ORDER BY notice_id DESC LIMIT ? OFFSET ?";
 				try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
 					context.getLogger().log("Input Success 001");
 					pstmt.setString(1, category);
-					pstmt.setInt(2, size);
-					pstmt.setInt(3, page * size);
+					pstmt.setString(2, "%" + title + "%");
+					pstmt.setInt(3, size);
+					pstmt.setInt(4, page * size);
 					try (ResultSet rs = pstmt.executeQuery()) {
 						context.getLogger().log("Input Success 002");
 						while (rs.next()) {
