@@ -7,21 +7,31 @@ group = 'org.example'
 version = '1.0-SNAPSHOT'
 
 sourceCompatibility = 17
+targetCompatibility = 17
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation 'com.amazonaws:aws-lambda-java-core:1.2.1'
-    implementation 'mysql:mysql-connector-java:8.0.23'
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.12.5'
+    implementation 'com.amazonaws:aws-lambda-java-core:1.2.2'
+    implementation 'com.amazonaws:aws-lambda-java-events:3.11.0'
+    implementation 'mysql:mysql-connector-java:8.0.33'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.14.2'
 }
+
 shadowJar {
+    archiveBaseName.set('calendar-lambda')
+    archiveClassifier.set('')
+    archiveVersion.set('')
     manifest {
-        attributes 'Main-Class': 'org.example.RDSQueryHandler'
+        attributes 'Main-Class': 'org.example.CalendarHandler'
     }
     mergeServiceFiles()
 }
 
 build.dependsOn shadowJar
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
