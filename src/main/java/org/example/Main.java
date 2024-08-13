@@ -34,16 +34,13 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 		String result = "";
 		try {
 			logger.log(String.format("INFO: input %s \n", objectMapper.writeValueAsString(input)));
-			String body = (String)input.get("body");
-			Map<String, Object> requestValues = objectMapper.readValue(body, new TypeReference<Map<String, Object>>() {
-			});
 
-			if (!requestValues.containsKey("year") || !requestValues.containsKey("month")) {
+			Map<String, String> queryStringParameters = (Map<String, String>) input.get("queryStringParameters");
+			if (!queryStringParameters.containsKey("year") || !queryStringParameters.containsKey("month")) {
 				throw new IllegalArgumentException("Missing required parameters: year and month");
 			}
-
-			int year = ((Number)requestValues.get("year")).intValue();
-			int month = ((Number)requestValues.get("month")).intValue();
+			int year = Integer.parseInt(queryStringParameters.get("year"));
+			int month = Integer.parseInt(queryStringParameters.get("month"));
 			logger.log("INFO: Request variable input complete\n");
 
 			List<ScheduleItem> scheduleItems = fetchCalendarData(year, month);
