@@ -5,13 +5,12 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -25,93 +24,52 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 
 	@Override
 	public String handleRequest(Map<String, Object> input, Context context) {
-		int page = input.containsKey("page") ? ((Number)input.get("page")).intValue() : 0;
-		int size = input.containsKey("size") ? ((Number)input.get("size")).intValue() : 10;
 
+		Map<String, String> queryStringParameters = (Map<String, String>) input.get("queryStringParameters");
+
+		String type = queryStringParameters.get("type");
 		try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
 			context.getLogger().log("Connected to database");
 
 			ObjectNode responseNode = objectMapper.createObjectNode();
-			ArrayNode noticesArray = objectMapper.createArrayNode();
+			ArrayNode contentArray = objectMapper.createArrayNode();
 
-			// 전체 아이템 수 조회
-			// int totalItems = getTotalItems(conn, context);
-			// context.getLogger().log("Total Items: " + totalItems);
-
-			// 페이지네이션된 데이터 조회
-			String sql = "SELECT * FROM notice ORDER BY notice_id DESC LIMIT ? OFFSET ?";
+			String sql = "SELECT * FROM notice WHERE category = ? ORDER BY notice_id DESC LIMIT 5";
 			try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-				context.getLogger().log("Input Success 001");
-				pstmt.setInt(1, size);
-				pstmt.setInt(2, page * size);
+				pstmt.setString(1, type); // type 파라미터 설정
 				try (ResultSet rs = pstmt.executeQuery()) {
-					context.getLogger().log("Input Success 002");
 					while (rs.next()) {
-						context.getLogger().log("Success While 001");
 						ObjectNode noticeNode = objectMapper.createObjectNode();
-						noticeNode.put("notice_id", rs.getInt("notice_id"));
-						noticeNode.put("category", rs.getString("category"));
+						noticeNode.put("id", rs.getInt("notice_id"));
+						noticeNode.put("type", rs.getString("category"));
 						noticeNode.put("notice_no", rs.getInt("notice_no"));
 						noticeNode.put("title", rs.getString("title"));
 						noticeNode.put("writer", rs.getString("writer"));
 						noticeNode.put("noticedAt", rs.getString("noticedAt"));
 						noticeNode.put("views", rs.getInt("views"));
 						noticeNode.put("link", rs.getString("link"));
-						noticesArray.add(noticeNode);
-
-						context.getLogger().log("Added notice: " + noticeNode.toString());
+						contentArray.add(noticeNode);
 					}
 				}
 			}
 
-			ObjectNode paginationNode = objectMapper.createObjectNode();
-			paginationNode.put("currentPage", page);
-			paginationNode.put("pageSize", size);
-			// paginationNode.put("totalItems", totalItems);
-			// paginationNode.put("hasNextPage", (page + 1) * size < totalItems);
-
 			ObjectNode dataNode = objectMapper.createObjectNode();
-			dataNode.set("notices", noticesArray);
-			dataNode.set("pagination", paginationNode);
+			dataNode.set("content", contentArray);
 
-			responseNode.put("status", "success");
+			responseNode.put("success", true);
 			responseNode.set("data", dataNode);
 
 			return objectMapper.writeValueAsString(responseNode);
-		} catch (SQLException | com.fasterxml.jackson.core.JsonProcessingException e) {
+		} catch (SQLException | JsonProcessingException e) {
 			ObjectNode errorResponseNode = objectMapper.createObjectNode();
-			errorResponseNode.put("status", "error");
-
-			ObjectNode errorDataNode = objectMapper.createObjectNode();
-			errorDataNode.set("notices", objectMapper.createArrayNode());
-
-			ObjectNode errorPaginationNode = objectMapper.createObjectNode();
-			errorPaginationNode.put("currentPage", 0);
-			errorPaginationNode.put("pageSize", 0);
-			errorPaginationNode.put("totalItems", 0);
-			errorPaginationNode.put("hasNextPage", false);
-
-			errorDataNode.set("pagination", errorPaginationNode);
-			errorResponseNode.set("data", errorDataNode);
+			errorResponseNode.put("success", false);
+			errorResponseNode.set("data", objectMapper.createObjectNode());
 
 			try {
 				return objectMapper.writeValueAsString(errorResponseNode);
-			} catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
-				return "{\"status\":\"error\",\"data\":{\"notices\":[],\"pagination\":{\"currentPage\":0,\"pageSize\":0,\"totalItems\":0,\"hasNextPage\":false}}}";
+			} catch (JsonProcessingException ex) {
+				return "{\"success\":false,\"data\":{}}";
 			}
 		}
 	}
-
-	// private int getTotalItems(Connection conn, Context context) throws SQLException {
-	// 	context.getLogger().log("Success Input 1");
-	// 	try (Statement stmt = conn.createStatement();
-	// 		 ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM notice")) {
-	// 		context.getLogger().log("ResultSet: " + rs);
-	// 		if (rs.next()) {
-	// 			context.getLogger().log("Success Output 1" + rs);
-	// 			return rs.getInt(1);
-	// 		}
-	// 	}
-	// 	return 0;
-	// }
 }
