@@ -30,14 +30,13 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 
 		try {
 			context.getLogger().log(String.format("INFO: input %s \n", objectMapper.writeValueAsString(input)));
-			String body = (String)input.get("body");
-			Map<String, Object> requestValues = objectMapper.readValue(body, new TypeReference<Map<String, Object>>() {
-			});
+			// query 파라미터에서 데이터 추출
+			Map<String, String> queryStringParameters = (Map<String, String>) input.get("queryStringParameters");
 
-			int page = ((Number)requestValues.get("page")).intValue();
-			int size = ((Number)requestValues.get("size")).intValue();
-			String category = requestValues.get("category").toString();
-			String title = requestValues.get("title").toString();
+			int page = Integer.parseInt(queryStringParameters.getOrDefault("page", "0"));
+			int size = Integer.parseInt(queryStringParameters.getOrDefault("size", "10"));
+			String category = queryStringParameters.getOrDefault("category", "");
+			String title = queryStringParameters.getOrDefault("title", "");
 
 			context.getLogger().log("page: " + page + " ,size: " + size + " ,category: " + category + " ,title: " + title);
 
