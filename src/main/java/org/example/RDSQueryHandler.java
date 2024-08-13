@@ -33,50 +33,46 @@ public class RDSQueryHandler implements RequestHandler<Map<String, Object>, Map<
 		List<Map<String, Object>> menuList = new ArrayList<>();
 
 		String body = (String) input.get("body");
-		try {
-			Map<String, Object> requestValues = objectMapper.readValue(body, new TypeReference<Map<String, Object>>() {});
-			logger.log(body);
-			String mealDate = requestValues.get("date").toString();
-			String restaurantName = requestValues.get("cafeteria").toString();
+		Map<String, String> queryStringParameters = (Map<String, String>) input.get("queryStringParameters");
 
-			String query = "SELECT m.meal_id, m.meal_date, m.meal_day, m.category, m.menu, r.name AS restaurant_name " +
-				"FROM meal m " +
-				"JOIN restaurant r ON m.restaurant_id = r.restaurant_id " +
-				"WHERE m.meal_date = ? AND r.name = ? ";
+		String mealDate = queryStringParameters.get("date").toString();
+		String restaurantName = queryStringParameters.get("cafeteria").toString();
 
-			try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-				 PreparedStatement pstmt = conn.prepareStatement(query)) {
+		String query = "SELECT m.meal_id, m.meal_date, m.meal_day, m.category, m.menu, r.name AS restaurant_name " +
+			"FROM meal m " +
+			"JOIN restaurant r ON m.restaurant_id = r.restaurant_id " +
+			"WHERE m.meal_date = ? AND r.name = ? ";
 
-				pstmt.setString(1, mealDate);
-				pstmt.setString(2, restaurantName);
+		try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+			 PreparedStatement pstmt = conn.prepareStatement(query)) {
 
-				try (ResultSet rs = pstmt.executeQuery()) {
-					while (rs.next()) {
-						if (data.isEmpty()) {
-							data.put("date", rs.getString("meal_date"));
-							data.put("day", rs.getString("meal_day"));
-							data.put("cafeteria", rs.getString("restaurant_name"));
-						}
+			pstmt.setString(1, mealDate);
+			pstmt.setString(2, restaurantName);
 
-						Map<String, Object> menuItem = new HashMap<>();
-						menuItem.put("id", rs.getInt("meal_id"));
-						menuItem.put("category", rs.getString("category"));
-						menuItem.put("food", parseFood(rs.getString("menu")));
-						menuList.add(menuItem);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					if (data.isEmpty()) {
+						data.put("date", rs.getString("meal_date"));
+						data.put("day", rs.getString("meal_day"));
+						data.put("cafeteria", rs.getString("restaurant_name"));
 					}
+
+					Map<String, Object> menuItem = new HashMap<>();
+					menuItem.put("id", rs.getInt("meal_id"));
+					menuItem.put("category", rs.getString("category"));
+					menuItem.put("food", parseFood(rs.getString("menu")));
+					menuList.add(menuItem);
 				}
-
-				data.put("menu", menuList);
-				response.put("success", true);
-				response.put("data", data);
-
-			} catch (SQLException e) {
-				logger.log("Error executing SQL query: " + e.getMessage());
-				response.put("success", false);
-				response.put("error", "Database operation failed: " + e.getMessage());
 			}
-		} catch (JsonProcessingException e) {
-			throw new RuntimeException(e);
+
+			data.put("menu", menuList);
+			response.put("success", true);
+			response.put("data", data);
+
+		} catch (SQLException e) {
+			logger.log("Error executing SQL query: " + e.getMessage());
+			response.put("success", false);
+			response.put("error", "Database operation failed: " + e.getMessage());
 		}
 		return response;
 	}
