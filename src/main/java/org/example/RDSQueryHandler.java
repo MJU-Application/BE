@@ -38,6 +38,25 @@ public class RDSQueryHandler implements RequestHandler<Map<String, Object>, Map<
 		String mealDate = queryStringParameters.get("date").toString();
 		String restaurantName = queryStringParameters.get("cafeteria").toString();
 
+		switch (restaurantName) {
+			case "인문학생회관":
+				restaurantName = "인문캠퍼스 학생회관 식당";
+				break;
+			case "자연명진당":
+				restaurantName = "자연캠퍼스 명진당 식당(Myongjin-Library Restaurant)";
+				break;
+			case "자연학생회관":
+				restaurantName = "자연캠퍼스 학생회관 식당(Student Union Restaurant)";
+				break;
+			case "자연생활관":
+				restaurantName = "자연캠퍼스 생활관식당(복지동)";
+				break;
+			case "자연교직원":
+				restaurantName = "자연캠퍼스 교직원식당";
+				break;
+		}
+
+
 		String query = "SELECT m.meal_id, m.meal_date, m.meal_day, m.category, m.menu, r.name AS restaurant_name " +
 			"FROM meal m " +
 			"JOIN restaurant r ON m.restaurant_id = r.restaurant_id " +
