@@ -27,7 +27,7 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 
 		Map<String, String> queryStringParameters = (Map<String, String>) input.get("queryStringParameters");
 
-		String type = queryStringParameters.get("type");
+		String type = queryStringParameters.get("category");
 		try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
 			context.getLogger().log("Connected to database");
 
@@ -41,7 +41,7 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 					while (rs.next()) {
 						ObjectNode noticeNode = objectMapper.createObjectNode();
 						noticeNode.put("id", rs.getInt("notice_id"));
-						noticeNode.put("type", rs.getString("category"));
+						noticeNode.put("category", rs.getString("category"));
 						noticeNode.put("notice_no", rs.getInt("notice_no"));
 						noticeNode.put("title", rs.getString("title"));
 						noticeNode.put("writer", rs.getString("writer"));
