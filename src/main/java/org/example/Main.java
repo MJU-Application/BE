@@ -25,18 +25,14 @@ public class Main implements RequestHandler<Map<String, Object>, String> {
 	@Override
 	public String handleRequest(Map<String, Object> input, Context context) {
 
-		Map<String, String> queryStringParameters = (Map<String, String>) input.get("queryStringParameters");
-
-		String type = queryStringParameters.get("category");
 		try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
 			context.getLogger().log("Connected to database");
 
 			ObjectNode responseNode = objectMapper.createObjectNode();
 			ArrayNode contentArray = objectMapper.createArrayNode();
 
-			String sql = "SELECT * FROM notice WHERE category = ? ORDER BY notice_id DESC LIMIT 5";
+			String sql = "SELECT * FROM notice ORDER BY notice_id DESC LIMIT 5";
 			try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-				pstmt.setString(1, type); // type 파라미터 설정
 				try (ResultSet rs = pstmt.executeQuery()) {
 					while (rs.next()) {
 						ObjectNode noticeNode = objectMapper.createObjectNode();
