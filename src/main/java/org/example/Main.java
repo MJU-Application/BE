@@ -119,6 +119,7 @@ public class Main implements RequestHandler<Object, String> {
 		this.logger.log("INFO: Complete Crawling of '" + category + "'. Total notice count= " + allNotices.size());
 		sb.replace(sb.length() - 2, sb.length(), ";");
 		String sql = sb.toString();
+		this.logger.log("INFO: Create SQL -> "+sql);
 		if (allNotices.size() != 0) {
 			Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
 
@@ -128,7 +129,7 @@ public class Main implements RequestHandler<Object, String> {
 				try {
 					this.logger.log("INFO: DB connection successful\n");
 					statement.executeUpdate(sql);
-					this.logger.log(sql);
+					this.logger.log("INFO: SQL Execute successful\n");
 				} catch (Throwable var32) {
 					if (statement != null) {
 						try {
