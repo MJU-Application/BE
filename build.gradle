@@ -15,12 +15,15 @@ repositories {
 dependencies {
     implementation 'com.amazonaws:aws-lambda-java-core:1.2.1'
     implementation 'mysql:mysql-connector-java:8.0.23'
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.12.5'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.14.2'
     implementation 'org.jsoup:jsoup:1.18.1'
 }
 shadowJar {
+    archiveBaseName.set('notice-crawling-lambda')
+    archiveClassifier.set('')
+    archiveVersion.set('')
     manifest {
-        attributes 'Main-Class': 'org.example.RDSQueryHandler'
+        attributes 'Main-Class': 'org.example.Main'
     }
     mergeServiceFiles()
 }

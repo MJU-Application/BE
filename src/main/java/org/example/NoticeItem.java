@@ -23,4 +23,14 @@ public class NoticeItem {
 		return this.category + ", " + this.number + ", " + this.title + ", " + this.writer + ", " + this.date + ", " + this.accessCount + ", " + this.link;
 	}
 
+	public String toSQLString() {
+		return "("
+			+ "'" + category + "', "
+			+ number + ", "
+			+ "'" + title + "', "
+			+ "'" + writer + "', "
+			+ "'" + date.replace(".", "-") + "', "
+			+ accessCount + ", "
+			+ "'" + link + "'),\n";
+	}
 }

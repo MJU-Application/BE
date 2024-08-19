@@ -83,37 +83,49 @@ public class Main implements RequestHandler<Object, String> {
 		String category = docu.select("div.h1Title h1").text();
 		this.logger.log("INFO: bring category from url");
 		int latestNoticeNum = this.getLastNoticeNum(category);
+
 		boolean isStop = false;
 
 		for(int page = 1; page <= totalPage && !isStop; ++page) {
+			if(isStop) break;
+
 			String url = baseUrl + "?page=" + page;
 			Document document = Jsoup.connect(url).get();
+
 			Elements numbers = document.getElementsByClass("_artclTdNum");
 			Elements titles = document.getElementsByClass("_artclTdTitle");
 			Elements writers = document.getElementsByClass("_artclTdWriter");
 			Elements dates = document.getElementsByClass("_artclTdRdate");
 			Elements access = document.getElementsByClass("_artclTdAccess");
 			Elements linkViews = document.getElementsByClass("artclLinkView");
+
 			List<NoticeItem> pageNotices = new ArrayList<>();
 
-			for(int i = 0; i < numbers.size(); ++i) {
-				if (numbers.get(i).text().matches("[+-]?\\d*(\\.\\d+)?")) {
-					if (Integer.parseInt(numbers.get(i).text()) <= latestNoticeNum) {
-						isStop = true;
-						break;
-					}
-
-					String number = numbers.get(i).text();
-					String title = titles.get(i).text().replaceAll("'", "\\\\'");
-					String writer = writers.get(i).text();
-					String date = dates.get(i).text();
-					String accessCount = access.get(i).text();
-					String link = baseLink + linkViews.get(i).select("a").first().attr("href");
-					NoticeItem item = new NoticeItem(category, number, title, writer, date, accessCount, link);
-					pageNotices.add(item);
-					allNotices.add(item);
+			for (int i = 0; i < numbers.size(); i++) {
+				if (!numbers.get(i).text().matches("[+-]?\\d*(\\.\\d+)?"))
+					continue;
+				if(Integer.parseInt(numbers.get(i).text()) <= latestNoticeNum) {
+					isStop = true;
+					break;
 				}
+
+				String number = numbers.get(i).text();
+				String title = titles.get(i).text().replaceAll("'", "\\\\'");;
+				String writer = writers.get(i).text();
+				String date = dates.get(i).text();
+				String accessCount = access.get(i).text();
+				String link = baseLink + linkViews.get(i).select("a").first().attr("href");
+
+				NoticeItem item = new NoticeItem(category, number, title, writer, date, accessCount, link);
+				pageNotices.add(item);
+				allNotices.add(item);
 			}
+
+			for (NoticeItem item : pageNotices) {
+				System.out.println(item);
+				sb.append(item.toSQLString());
+			}
+
 		}
 
 		this.logger.log("INFO: Complete Crawling of '" + category + "'. Total notice count= " + allNotices.size());
