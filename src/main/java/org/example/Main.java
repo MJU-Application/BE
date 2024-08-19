@@ -43,7 +43,7 @@ public class Main implements RequestHandler<Object, String> {
 	}
 
 	private void schedule(String baseUrl) throws Exception {
-		this.logger.log(String.format("INFO: Starting method 'notice' for baseUrl=%s\n", baseUrl));
+		this.logger.log(String.format("INFO: Starting method 'schedule' for baseUrl=%s\n", baseUrl));
 
 		StringBuilder sb = new StringBuilder();
 		sb.append("insert into calendar (c_year, c_month, c_period, c_contents) values\n");
