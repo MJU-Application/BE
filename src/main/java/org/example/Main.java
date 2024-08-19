@@ -10,10 +10,12 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 public class Main implements RequestHandler<Object, String> {
@@ -33,13 +35,13 @@ public class Main implements RequestHandler<Object, String> {
 
 		try {
 			List<String> urlList = new ArrayList<>();
-			urlList.add("https://www.mju.ac.kr/mjukr/255/subview.do");
-			urlList.add("https://www.mju.ac.kr/mjukr/256/subview.do");
-			urlList.add("https://www.mju.ac.kr/mjukr/257/subview.do");
-			urlList.add("https://www.mju.ac.kr/mjukr/259/subview.do");
-			urlList.add("https://www.mju.ac.kr/mjukr/260/subview.do");
+			urlList.add("https://www.mju.ac.kr/mjukr/8595/subview.do");//인문)학생회관식당
+			urlList.add("https://www.mju.ac.kr/mjukr/485/subview.do");//자연)명진당
+			urlList.add("https://www.mju.ac.kr/mjukr/486/subview.do");//자연)학생회관
+			urlList.add("https://www.mju.ac.kr/mjukr/487/subview.do");//자연)생활관식당
+			urlList.add("https://www.mju.ac.kr/mjukr/488/subview.do");//자연)교직원식당
 
-			for(String url : urlList) this.notice(url);
+			for(String url : urlList) this.menu(url);
 
 		} catch (Exception var7) {
 			this.logger.log("ERROR: " + var7.getMessage());
@@ -49,18 +51,20 @@ public class Main implements RequestHandler<Object, String> {
 		return result;
 	}
 
-	private void notice(String baseUrl) throws Exception {
-		this.logger.log(String.format("INFO: Starting method 'notice' for baseUrl=%s\n", baseUrl));
-		String baseLink = "https://www.mju.ac.kr";
-		List<NoticeItem> allNotices = new ArrayList<>();
+	private void menu(String baseUrl) throws Exception {
+		this.logger.log(String.format("INFO: Starting method 'menu' for baseUrl=%s\n", baseUrl));
+
 		StringBuilder sb = new StringBuilder();
-		sb.append("insert into notice (category, notice_no, title, writer, noticedAt, views, link) values\n");
+		sb.append("insert into meal (meal_date, meal_day, category, menu, restaurant_id) values\n");
+
 		this.logger.log("INFO: create stringBuilder");
+
 		Document docu = null;
 		int maxRetries = 3;
 		int tryCount = 0;
 
 		while(tryCount < maxRetries) {
+
 			this.logger.log("INFO: try connect jsoup");
 
 			try {
@@ -77,62 +81,79 @@ public class Main implements RequestHandler<Object, String> {
 		}
 
 		this.logger.log("INFO: Successfully connect jsoup");
+
 		assert docu != null;
-		String element = docu.select("div._inner a._last").first().attr("href").replaceAll("\\D", "");
-		int totalPage = Integer.parseInt(element);
-		String category = docu.select("div.h1Title h1").text();
-		this.logger.log("INFO: bring category from url");
-		int latestNoticeNum = this.getLastNoticeNum(category);
+		String cafeteria = docu.select("div.sceduleBox p.title").text();
+		this.logger.log("INFO: bring cafeteria from url");
 
-		boolean isStop = false;
+		int restaurantId = this.getRestaurantId(cafeteria);
+		String mealDate = this.getMealDate(restaurantId);
 
-		for(int page = 1; page <= totalPage && !isStop; ++page) {
-			if(isStop) break;
+		//테이블 바디 가져오기
+		Elements elements = docu.getElementsByClass("tableWrap marT50");
+		//테이블의 바디의 내용(ex.05.20(월) 조식 - 메뉴 -)의 모임
+		Elements rows = elements.select("table tbody tr");
+		String date = "";//날짜
+		String day = "";//요일
+		String type = "";//구분(조식, 중식, 석식)
+		List<String> menu = new ArrayList<>();//메뉴
+		boolean isRegistration = false;//메뉴가 등록되어 있는지
 
-			String url = baseUrl + "?page=" + page;
-			Document document = Jsoup.connect(url).get();
+		int year = LocalDate.now().getYear();
 
-			Elements numbers = document.getElementsByClass("_artclTdNum");
-			Elements titles = document.getElementsByClass("_artclTdTitle");
-			Elements writers = document.getElementsByClass("_artclTdWriter");
-			Elements dates = document.getElementsByClass("_artclTdRdate");
-			Elements access = document.getElementsByClass("_artclTdAccess");
-			Elements linkViews = document.getElementsByClass("artclLinkView");
+		int count = 0;
+		for(Element row : rows) {
+			//요일 가져오기
+			if(row.select("th").hasText()){
+				String[] data = row.select("th").text().split(" ");
+				date = year+"-"+data[0].replace(".","-");
+				day = data.length == 4 ? data[2]+"요일" : data[1].replace("(","").replace(")","")+"요일";
+			}
+			//저장 대상인지 확인
+			if(mealDate != "" && !LocalDate.parse(date).isAfter(LocalDate.parse(mealDate))) continue;
 
-			List<NoticeItem> pageNotices = new ArrayList<>();
-
-			for (int i = 0; i < numbers.size(); i++) {
-				if (!numbers.get(i).text().matches("[+-]?\\d*(\\.\\d+)?"))
-					continue;
-				if(Integer.parseInt(numbers.get(i).text()) <= latestNoticeNum) {
-					isStop = true;
-					break;
+			//(ex.조식 - 메뉴 -) 이 내용 가져오기
+			Elements tds = row.select("td");
+			type = tds.first().text();
+			if(type.equals("점심")) type = "중식";
+			else if(type.equals("저녁")) type = "석식";
+			String e = "";
+			if(tds.size() > 2) isRegistration = true; //내용 길이가 2 이하면 등록 안 된거
+			//(- 메뉴 -) 이거 처리 -> 여기서 메뉴만 가져옴.
+			//만약 등록 안되어있으면 '등록 안됨' 이거를 가져옴.
+			for(int i=1; i<tds.size(); i++){
+				if(!tds.get(i).text().equals("-"))
+					e = tds.get(i).text();
+			}
+			//등록이 되어 있다면 메뉴를 List에 담기
+			if(isRegistration){
+				String[] foods = e.split(" ");
+				for(String food : foods){
+					if(food.contains("kcal") || food.contains("l")) continue; //중식 메뉴에는 kcal가 포함되어 있어 이거는 제외
+					menu.add(food);
 				}
-
-				String number = numbers.get(i).text();
-				String title = titles.get(i).text().replaceAll("'", "\\\\'");;
-				String writer = writers.get(i).text();
-				String date = dates.get(i).text();
-				String accessCount = access.get(i).text();
-				String link = baseLink + linkViews.get(i).select("a").first().attr("href");
-
-				NoticeItem item = new NoticeItem(category, number, title, writer, date, accessCount, link);
-				pageNotices.add(item);
-				allNotices.add(item);
 			}
+			//등록이 안되어 있다면 그냥 '등록 안됨'을 담음
+			else menu.add(e);
+			//출력
+			sb.append("("
+				+"'"+date+"',"
+				+"'"+day+"',"
+				+"'"+type+"',"
+				+"'"+menu+"',"
+				+restaurantId+"),\n");
 
-			for (NoticeItem item : pageNotices) {
-				System.out.println(item);
-				sb.append(item.toSQLString());
-			}
-
+			//메뉴 초기화
+			menu.clear();
+			isRegistration = false;
+			count++;
 		}
 
-		this.logger.log("INFO: Complete Crawling of '" + category + "'. Total notice count= " + allNotices.size());
+		this.logger.log("INFO: Complete Crawling of '" + cafeteria + "'. Total meal count= " + count);
 		sb.replace(sb.length() - 2, sb.length(), ";");
 		String sql = sb.toString();
 		this.logger.log("INFO: Create SQL -> "+sql);
-		if (allNotices.size() != 0) {
+		if (count != 0) {
 			Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
 
 			try {
@@ -172,68 +193,65 @@ public class Main implements RequestHandler<Object, String> {
 
 	}
 
-	private int getLastNoticeNum(String category) throws Exception {
-		this.logger.log(String.format("INFO: Starting method 'getLastNoticeNum' for category=%s\n", category));
-		String sql = "SELECT notice_no FROM notice WHERE category = ? ORDER BY notice_no DESC LIMIT 1;";
-		int latestNoticeNum = 0;
+	private int getRestaurantId(String cafeteria) throws Exception {
+		this.logger.log(String.format("INFO: Starting method 'getRestaurantId' for cafeteria=%s\n", cafeteria));
+		String sql = "SELECT restaurant_id FROM restaurant WHERE name = ?;";
+		int restaurantId = 0;
 		Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
 
 		try {
 			PreparedStatement pstmt = conn.prepareStatement(sql);
 
-			try {
-				this.logger.log("INFO: DB connection successful\n");
-				pstmt.setString(1, category);
-				ResultSet resultSet = pstmt.executeQuery();
+			this.logger.log("INFO: DB connection successful\n");
+			pstmt.setString(1, cafeteria);
+			ResultSet resultSet = pstmt.executeQuery();
 
-				try {
-					this.logger.log("INFO: SQL result receiving successful\n");
-					if (resultSet.next()) {
-						latestNoticeNum = Integer.parseInt(resultSet.getString("notice_no"));
-					}
-
-					this.logger.log("INFO: Category = " + category + ", Recently saved notice number = " + latestNoticeNum);
-				} catch (Throwable var12) {
-					if (resultSet != null) {
-						try {
-							resultSet.close();
-						} catch (Throwable var11) {
-							var12.addSuppressed(var11);
-						}
-					}
-
-					throw var12;
-				}
-
-				resultSet.close();
-			} catch (Throwable var13) {
-				if (pstmt != null) {
-					try {
-						pstmt.close();
-					} catch (Throwable var10) {
-						var13.addSuppressed(var10);
-					}
-				}
-
-				throw var13;
+			this.logger.log("INFO: SQL result receiving successful\n");
+			if (resultSet.next()) {
+				restaurantId = Integer.parseInt(resultSet.getString("restaurant_id"));
 			}
 
+			this.logger.log("INFO: Cafeteria = " + cafeteria + ", RestaurantId = " + restaurantId);
+
+			resultSet.close();
 			pstmt.close();
-		} catch (Throwable var14) {
-			if (conn != null) {
-				try {
-					conn.close();
-				} catch (Throwable var9) {
-					var14.addSuppressed(var9);
-				}
-			}
 
+		} catch (Throwable var14) {
 			throw var14;
 		}
 
 		conn.close();
-
-		return latestNoticeNum;
+		return restaurantId;
 	}
 
+	private String getMealDate(int restaurantId) throws Exception {
+		this.logger.log(String.format("INFO: Starting method 'getMealDate' for restaurantId=%s\n", restaurantId));
+		String sql = "SELECT meal_date FROM meal WHERE restaurant_id = ? ORDER BY meal_date DESC LIMIT 1;";
+		String mealDate = "";
+		Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+
+		try {
+			PreparedStatement pstmt = conn.prepareStatement(sql);
+
+			this.logger.log("INFO: DB connection successful\n");
+			pstmt.setInt(1, restaurantId);
+			ResultSet resultSet = pstmt.executeQuery();
+
+			this.logger.log("INFO: SQL result receiving successful\n");
+			if (resultSet.next()) {
+				mealDate = resultSet.getString("meal_date");
+			}
+
+			this.logger.log("INFO: RestaurantId = " + restaurantId + ", Recently saved meal date = " + mealDate);
+
+			resultSet.close();
+			pstmt.close();
+
+		} catch (Throwable var14) {
+			throw var14;
+		}
+
+		conn.close();
+		return mealDate;
+	}
 }
