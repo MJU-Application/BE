@@ -19,7 +19,7 @@ dependencies {
     implementation 'org.jsoup:jsoup:1.18.1'
 }
 shadowJar {
-    archiveBaseName.set('notice-crawling-lambda')
+    archiveBaseName.set('meal-crawling-lambda')
     archiveClassifier.set('')
     archiveVersion.set('')
     manifest {
